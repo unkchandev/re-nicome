@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"os"
 	"regexp"
@@ -180,6 +181,7 @@ func (mw *MyMainWindow) replaceFile(path string) {
 	defer fp.Close()
 	writer := bufio.NewWriter(fp)
 
+	var oldtime int64 = math.MaxInt64
 	for _, comment := range lines {
 		if comment == "" {
 			continue
@@ -190,6 +192,7 @@ func (mw *MyMainWindow) replaceFile(path string) {
 			logch <- "Error[3]: Unable to parse file: " + path
 			return
 		}
+		var timeint int64
 		timestr := tc[1]
 		comstr := tc[2]
 		if strings.ToUpper(timeFmt[1]) != "UNIXTIME" {
@@ -199,12 +202,30 @@ func (mw *MyMainWindow) replaceFile(path string) {
 				logch <- "Error[4]: Unable to parse file: " + path
 				return
 			}
-			timestr = strconv.FormatInt(t.Unix(), 10)
+			if oldtime == math.MaxInt64 {
+				oldtime = t.Unix()
+			}
+			timeint = t.Unix() - oldtime
+			if timeint < 0 {
+				timeint = 0
+			}
+			timestr = strconv.FormatInt(timeint, 10)
+		} else {
+			timeint, _ = strconv.ParseInt(timestr, 10, 64)
+			if oldtime == math.MaxInt64 {
+				oldtime = timeint
+			}
+			timeint = timeint - oldtime
+			if timeint < 0 {
+				timeint = 0
+			}
+			timestr = strconv.FormatInt(timeint, 10)
 		}
 
-		// magic
-		for keta := 12 - len(timestr); keta > 0; keta-- {
-			timestr = timestr + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
+		if timestr != "0" {
+			for i := 0; i < 2; i++ {
+				timestr = timestr + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
+			}
 		}
 
 		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\n", i, timestr, comstr)
