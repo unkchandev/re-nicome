@@ -1,0 +1,7 @@
+Items:
+- Name: Youtube
+  RegExp: ^__TIME[UNIXTIME]__\t__COMMENT__$
+- Name: Twitcasting
+  RegExp: ^\[__TIME[2006/01/02 15:04:05]__\] __COMMENT__（.*$
+- Name: Ustream
+  RegExp: ^__TIME[15:04:05]__ \(.+?\) __COMMENT__$
