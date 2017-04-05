@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"regexp"
 	"strconv"
@@ -38,6 +39,8 @@ type Setting struct {
 
 var logch = make(chan string, 10)
 
+const LETTERS = "0123456789"
+
 func (mw *MyMainWindow) getSettings() []*Item {
 	buf, err := ioutil.ReadFile("config.yml")
 	if err != nil {
@@ -64,6 +67,7 @@ func (mw *MyMainWindow) setSettings() {
 func main() {
 	mw := new(MyMainWindow)
 
+	rand.Seed(time.Now().UnixNano())
 	go func() {
 		for {
 			msg := <-logch
@@ -196,6 +200,11 @@ func (mw *MyMainWindow) replaceFile(path string) {
 				return
 			}
 			timestr = strconv.FormatInt(t.Unix(), 10)
+		}
+
+		// magic
+		for keta := 12 - len(timestr); keta > 0; keta-- {
+			timestr = timestr + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
 		}
 
 		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\n", i, timestr, comstr)
