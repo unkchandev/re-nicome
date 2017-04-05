@@ -228,7 +228,7 @@ func (mw *MyMainWindow) replaceFile(path string) {
 			}
 		}
 
-		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\n", i, timestr, comstr)
+		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\r\n", i, timestr, comstr)
 		i++
 		_, err = writer.WriteString(outcom)
 		if err != nil {
