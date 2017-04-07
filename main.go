@@ -26,6 +26,7 @@ type MyMainWindow struct {
 	nameEdit *walk.LineEdit
 	regEdit  *walk.LineEdit
 	nameBox  *walk.ComboBox
+	ignBox   *walk.CheckBox
 
 	logTE *walk.TextEdit
 }
@@ -80,8 +81,8 @@ func main() {
 
 	if _, err := (MainWindow{
 		AssignTo: &mw.MainWindow,
-		Title:    "RegExp Replace",
-		MinSize:  Size{400, 400},
+		Title:    "Re-Nicome",
+		MinSize:  Size{600, 400},
 		Layout:   VBox{},
 		OnDropFiles: func(files []string) {
 			mw.replaceFiles(files)
@@ -105,6 +106,12 @@ func main() {
 						Model:         mw.getSettings(),
 						OnCurrentIndexChanged: mw.setSettings,
 						AssignTo:              &mw.nameBox,
+					},
+					Label{
+						Text: "Ignore unparseable lines:",
+					},
+					CheckBox{
+						AssignTo: &mw.ignBox,
 					},
 				},
 			},
@@ -181,6 +188,7 @@ func (mw *MyMainWindow) replaceFile(path string) {
 	defer fp.Close()
 	writer := bufio.NewWriter(fp)
 
+	ignore := mw.ignBox.Checked()
 	var oldtime int64 = math.MaxInt64
 	for _, comment := range lines {
 		if comment == "" {
@@ -189,8 +197,12 @@ func (mw *MyMainWindow) replaceFile(path string) {
 
 		tc := re.FindStringSubmatch(comment)
 		if len(tc) != 3 {
-			logch <- "Error[3]: Unable to parse file: " + path
-			return
+			if ignore {
+				continue
+			} else {
+				logch <- "Error[3]: Unable to parse file: " + path
+				return
+			}
 		}
 		var timeint int64
 		timestr := tc[1]
