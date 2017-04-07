@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -37,6 +38,24 @@ type Item struct {
 }
 type Setting struct {
 	Items []*Item `yaml:"Items"`
+}
+
+type CommentItem struct {
+	Comment   string
+	Timestamp time.Time
+}
+type CommentItems []CommentItem
+
+func (c CommentItems) Len() int {
+	return len(c)
+}
+
+func (c CommentItems) Less(i, j int) bool {
+	return c[i].Timestamp.Before(c[j].Timestamp)
+}
+
+func (c CommentItems) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }
 
 var logch = make(chan string, 10)
@@ -73,7 +92,6 @@ func main() {
 	go func() {
 		for {
 			msg := <-logch
-			fmt.Println(msg)
 			mw.logTE.AppendText(msg + "\n")
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -131,7 +149,6 @@ func main() {
 	}.Run()); err != nil {
 		log.Fatal(err)
 	}
-	mw.logTE.AppendText("das")
 }
 
 func (mw *MyMainWindow) replaceFiles(files []string) {
@@ -145,22 +162,28 @@ func (mw *MyMainWindow) replaceFiles(files []string) {
 		go mw.replaceFile(v)
 		time.Sleep(100 * time.Millisecond)
 	}
-
 }
 
 // regexp: ^__TIME[UNIXTIME]__\\t__COMMENT__$
 // regexp: ^__TIME[15:04:05]__ \(.+?\) __COMMENT__$
 // regexp: ^[__TIME[2006/01/02 15:04:05]__] __COMMENT__（.*$
 func (mw *MyMainWindow) replaceFile(path string) {
+	parsedCom, err := mw.getParsedComments(path)
+	if err != nil {
+		logch <- err.Error()
+	}
+	sort.Sort(parsedCom)
+	mw.saveCommentItems(path, parsedCom)
+}
+
+func (mw *MyMainWindow) getParsedComments(path string) (CommentItems, error) {
 	s := mw.regEdit.Text()
 	ret, _ := regexp.Compile(`__TIME\[(.+?)\]__`)
 	rec, _ := regexp.Compile(`__COMMENT__`)
-	i := 1
 
 	timeFmt := ret.FindStringSubmatch(s)
 	if timeFmt == nil || len(timeFmt) != 2 {
-		logch <- "Error[1]: Unable to parse file: " + path
-		return
+		return nil, fmt.Errorf("Error[1]: Unable to parse file: " + path)
 	}
 
 	s = ret.ReplaceAllString(s, "(.+?)")
@@ -169,13 +192,54 @@ func (mw *MyMainWindow) replaceFile(path string) {
 
 	re, err := regexp.Compile(s)
 	if err != nil {
-		logch <- "Error[2]: Unable to parse file: " + path
-		return
+		return nil, fmt.Errorf("Error[2]: Unable to parse file: " + path)
 	}
 
 	lines, err := readCommentFile(path)
 	if err != nil {
-		logch <- err.Error()
+		return nil, err
+	}
+
+	ignore := mw.ignBox.Checked()
+	comments := make(CommentItems, 0)
+	for _, comment := range lines {
+		if comment == "" {
+			continue
+		}
+
+		tc := re.FindStringSubmatch(comment)
+		if len(tc) != 3 {
+			if ignore {
+				continue
+			} else {
+				return nil, fmt.Errorf("Error[3]: Unable to parse file: " + path)
+			}
+		}
+
+		timestr := tc[1]
+		comstr := tc[2]
+		var t time.Time
+		if strings.ToUpper(timeFmt[1]) == "UNIXTIME" {
+			tint, _ := strconv.ParseInt(timestr, 10, 64)
+			t = time.Unix(tint, int64(rand.Intn(60)))
+		} else {
+			loc, _ := time.LoadLocation("Asia/Tokyo")
+			t, err = time.ParseInLocation(timeFmt[1], timestr, loc)
+			if err != nil {
+				return nil, fmt.Errorf("Error[4]: Unable to parse file: " + path)
+			}
+		}
+		comments = append(comments, CommentItem{comstr, t})
+	}
+	return comments, nil
+}
+
+func (mw *MyMainWindow) saveCommentItems(path string, comments CommentItems) {
+	s := mw.regEdit.Text()
+	ret, _ := regexp.Compile(`__TIME\[(.+?)\]__`)
+
+	timeFmt := ret.FindStringSubmatch(s)
+	if timeFmt == nil || len(timeFmt) != 2 {
 		return
 	}
 
@@ -188,59 +252,19 @@ func (mw *MyMainWindow) replaceFile(path string) {
 	defer fp.Close()
 	writer := bufio.NewWriter(fp)
 
-	ignore := mw.ignBox.Checked()
+	i := 1
 	var oldtime int64 = math.MaxInt64
-	for _, comment := range lines {
-		if comment == "" {
-			continue
+	for _, comment := range comments {
+		if oldtime == math.MaxInt64 {
+			oldtime = comment.Timestamp.Unix()
 		}
-
-		tc := re.FindStringSubmatch(comment)
-		if len(tc) != 3 {
-			if ignore {
-				continue
-			} else {
-				logch <- "Error[3]: Unable to parse file: " + path
-				return
-			}
-		}
-		var timeint int64
-		timestr := tc[1]
-		comstr := tc[2]
-		if strings.ToUpper(timeFmt[1]) != "UNIXTIME" {
-			loc, _ := time.LoadLocation("Asia/Tokyo")
-			t, err := time.ParseInLocation(timeFmt[1], timestr, loc)
-			if err != nil {
-				logch <- "Error[4]: Unable to parse file: " + path
-				return
-			}
-			if oldtime == math.MaxInt64 {
-				oldtime = t.Unix()
-			}
-			timeint = t.Unix() - oldtime
-			if timeint < 0 {
-				timeint = 0
-			}
-			timestr = strconv.FormatInt(timeint, 10)
-		} else {
-			timeint, _ = strconv.ParseInt(timestr, 10, 64)
-			if oldtime == math.MaxInt64 {
-				oldtime = timeint
-			}
-			timeint = timeint - oldtime
-			if timeint < 0 {
-				timeint = 0
-			}
-			timestr = strconv.FormatInt(timeint, 10)
-		}
-
-		if timestr != "0" {
+		vpos := strconv.FormatInt(comment.Timestamp.Unix()-oldtime, 10)
+		if vpos != "0" {
 			for i := 0; i < 2; i++ {
-				timestr = timestr + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
+				vpos = vpos + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
 			}
 		}
-
-		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\r\n", i, timestr, comstr)
+		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\r\n", i, vpos, comment.Comment)
 		i++
 		_, err = writer.WriteString(outcom)
 		if err != nil {
