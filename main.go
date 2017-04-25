@@ -181,10 +181,16 @@ func (mw *MyMainWindow) getParsedComments(path string) (CommentItems, error) {
 	ret, _ := regexp.Compile(`__TIME\[(.+?)\]__`)
 	rec, _ := regexp.Compile(`__COMMENT__`)
 
+	isTimeFst := false
+	if strings.Index(s, `__COMMENT__`) > strings.Index(s, `__TIME`) {
+		isTimeFst = true
+	}
+
 	timeFmt := ret.FindStringSubmatch(s)
 	if timeFmt == nil || len(timeFmt) != 2 {
 		return nil, fmt.Errorf("Error[1]: Unable to parse file: " + path)
 	}
+	timeFmt[1] = strings.Replace(timeFmt[1], `\`, "", -1)
 
 	s = ret.ReplaceAllString(s, "(.+?)")
 	s = rec.ReplaceAllString(s, "(.+?)")
@@ -216,8 +222,15 @@ func (mw *MyMainWindow) getParsedComments(path string) (CommentItems, error) {
 			}
 		}
 
-		timestr := tc[1]
-		comstr := tc[2]
+		var timestr, comstr string
+		if isTimeFst {
+			timestr = tc[1]
+			comstr = tc[2]
+		} else {
+			timestr = tc[2]
+			comstr = tc[1]
+		}
+
 		var t time.Time
 		if strings.ToUpper(timeFmt[1]) == "UNIXTIME" {
 			tint, _ := strconv.ParseInt(timestr, 10, 64)
