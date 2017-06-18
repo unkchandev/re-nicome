@@ -60,7 +60,10 @@ func (c CommentItems) Swap(i, j int) {
 
 var logch = make(chan string, 10)
 
-const LETTERS = "0123456789"
+const (
+	LETTERS        = "0123456789"
+	COMMENT_FORMAT = "<chat user_id=\"a\" date=\"1\" no=\"%d\" vpos=\"%s\">%s</chat>\r\n"
+)
 
 func (mw *MyMainWindow) getSettings() []*Item {
 	buf, err := ioutil.ReadFile("config.yml")
@@ -277,7 +280,7 @@ func (mw *MyMainWindow) saveCommentItems(path string, comments CommentItems) {
 				vpos = vpos + string(LETTERS[int(rand.Int63()%int64(len(LETTERS)))])
 			}
 		}
-		outcom := fmt.Sprintf("<chat no=\"%d\" vpos=\"%s\">%s</chat>\r\n", i, vpos, comment.Comment)
+		outcom := fmt.Sprintf(COMMENT_FORMAT, i, vpos, comment.Comment)
 		i++
 		_, err = writer.WriteString(outcom)
 		if err != nil {
