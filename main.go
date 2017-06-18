@@ -61,8 +61,9 @@ func (c CommentItems) Swap(i, j int) {
 var logch = make(chan string, 10)
 
 const (
+	FILE_EXT       = ".xml"
 	LETTERS        = "0123456789"
-	COMMENT_FORMAT = "<chat user_id=\"a\" date=\"1\" no=\"%d\" vpos=\"%s\">%s</chat>\r\n"
+	COMMENT_FORMAT = "<chat user_id=\"hoge\" date=\"%d\" vpos=\"%s\">%s</chat>\r\n"
 )
 
 func (mw *MyMainWindow) getSettings() []*Item {
@@ -260,7 +261,7 @@ func (mw *MyMainWindow) saveCommentItems(path string, comments CommentItems) {
 	}
 
 	// open save file
-	fp, err := os.OpenFile(path+".txt", os.O_WRONLY|os.O_CREATE, 0644)
+	fp, err := os.OpenFile(path+FILE_EXT, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		logch <- err.Error()
 		return
